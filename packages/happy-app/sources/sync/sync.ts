@@ -2223,16 +2223,21 @@ class Sync {
 
     private fetchOlderMessagesInBackground = async (sessionId: string) => {
         const SLEEP_BETWEEN_PAGES_MS = 250;
+        // Bounded: unbounded prefetch grows a long session's in-memory list
+        // without limit, degrading re-render/re-sort cost on every future open
+        // (slopus/happy#1453). loadOlderMessages on scroll-up covers the rest.
+        const MAX_BACKGROUND_PAGES = 10;
         // While loadOlderMessages handles the actual work, this loop is what
         // keeps it going without user input. We keep stepping until either:
         //   - the server says there is no more older history, or
         //   - the session is no longer present in the store (user navigated
         //     away and the session was unloaded), or
         //   - we hit seq = 1 (the very first message), or
-        //   - the encryption key is gone (logged out).
+        //   - the encryption key is gone (logged out), or
+        //   - we've prefetched MAX_BACKGROUND_PAGES pages.
         // The loop yields between pages to keep the UI thread responsive
         // and to spread out server load.
-        while (true) {
+        for (let pagesFetched = 0; pagesFetched < MAX_BACKGROUND_PAGES; pagesFetched++) {
             const sessionMessages = storage.getState().sessionMessages[sessionId];
             if (!sessionMessages || !sessionMessages.hasMoreOlder) {
                 return;
