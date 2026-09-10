@@ -17,6 +17,16 @@ export interface Decryptor {
     decrypt(data: Uint8Array[]): Promise<(any | null)[]>;
 }
 
+// libsodium decrypt calls are synchronous WASM work; a batch of ~100 messages
+// can block the main thread for a stretch long enough that scrolled-in
+// history never gets a chance to paint before the reader has moved past it.
+// Yielding every DECRYPT_YIELD_EVERY items keeps each burst under a frame
+// budget without changing the batching itself.
+const DECRYPT_YIELD_EVERY = 8;
+async function yieldToMainThread(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
 export class SecretBoxEncryption implements Encryptor, Decryptor {
     private readonly secretKey: Uint8Array;
 
@@ -27,8 +37,9 @@ export class SecretBoxEncryption implements Encryptor, Decryptor {
     async decrypt(data: Uint8Array[]): Promise<(any | null)[]> {
         // Process as batch, not Promise.all - more efficient
         const results: (any | null)[] = [];
-        for (const item of data) {
-            results.push(decryptSecretBox(item, this.secretKey));
+        for (let i = 0; i < data.length; i++) {
+            results.push(decryptSecretBox(data[i], this.secretKey));
+            if (i > 0 && i % DECRYPT_YIELD_EVERY === 0) await yieldToMainThread();
         }
         return results;
     }
@@ -66,13 +77,10 @@ export class BoxEncryption implements Encryptor, Decryptor {
     async decrypt(data: Uint8Array[]): Promise<(any | null)[]> {
         // Process as batch, not Promise.all - more efficient
         const results: (any | null)[] = [];
-        for (const item of data) {
-            let decrypted = decryptBox(item, this.privateKey);
-            if (!decrypted) {
-                results.push(null);
-                continue;
-            }
-            results.push(JSON.parse(decodeUTF8(decrypted)));
+        for (let i = 0; i < data.length; i++) {
+            let decrypted = decryptBox(data[i], this.privateKey);
+            results.push(decrypted ? JSON.parse(decodeUTF8(decrypted)) : null);
+            if (i > 0 && i % DECRYPT_YIELD_EVERY === 0) await yieldToMainThread();
         }
         return results;
     }
