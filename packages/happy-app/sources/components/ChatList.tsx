@@ -552,6 +552,7 @@ const ChatListInternal = React.memo((props: {
     // offsets walk back through history.
     const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+        console.log('[DEBUG-scroll] onScroll fired', { offsetY: contentOffset.y, tookOver: userTookOverRef.current });
         const distanceFromNewest = Math.max(0, contentOffset.y);
         scrollMetricsRef.current.offsetY = distanceFromNewest;
         if (contentSize.height > 0) {
@@ -689,11 +690,13 @@ const ChatListInternal = React.memo((props: {
     // since there is no onScrollBeginDrag for wheels. Shift+wheel also swaps
     // deltaX/deltaY on macOS — restore vertical scrolling.
     React.useEffect(() => {
-        if (Platform.OS !== 'web') return;
+        if (Platform.OS !== 'web') { console.log('[DEBUG-scroll] wheel effect: not web'); return; }
         const node = listRef.current?.getScrollableNode?.() as HTMLElement | undefined;
+        console.log('[DEBUG-scroll] wheel effect: node=', !!node, 'hasGetScrollableNode=', !!listRef.current?.getScrollableNode);
         if (!node) return;
         const handler = (e: WheelEvent) => {
             userTookOverRef.current = true;
+            console.log('[DEBUG-scroll] wheel fired, deltaY=', e.deltaY, 'scrollTop=', node.scrollTop);
             if (e.shiftKey && Math.abs(e.deltaX) > 0 && Math.abs(e.deltaY) < 1) {
                 node.scrollTop += e.deltaX;
                 e.preventDefault();
