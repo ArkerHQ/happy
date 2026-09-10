@@ -568,6 +568,7 @@ const ChatListInternal = React.memo((props: {
         );
         if (userTookOverRef.current
             && distanceFromOldest < scrollMetricsRef.current.viewportHeight * START_REACHED_VIEWPORTS) {
+            console.log('[DEBUG-scroll] near-edge trigger', { distanceFromOldest, viewportHeight: scrollMetricsRef.current.viewportHeight, contentHeight: scrollMetricsRef.current.contentHeight });
             requestOlderHistoryRef.current();
         }
         updateHeaderBackdropVisibility();
@@ -638,19 +639,22 @@ const ChatListInternal = React.memo((props: {
         // trigger zone, and layout corrections can drift into it as well —
         // neither is a request for more history.
         if (!props.active || !listReadyRef.current || !userTookOverRef.current) {
+            console.log('[DEBUG-scroll] bail: gate', { active: props.active, listReady: listReadyRef.current, tookOver: userTookOverRef.current });
             return;
         }
-        if (awaitingOlderRef.current) return;
+        if (awaitingOlderRef.current) { console.log('[DEBUG-scroll] bail: awaitingOlder'); return; }
         const all = messagesRef.current;
         const currentEnd = windowRef.current.length;
-        if (all.length === 0 || currentEnd <= 0) return;
+        if (all.length === 0 || currentEnd <= 0) { console.log('[DEBUG-scroll] bail: empty', { allLen: all.length, currentEnd }); return; }
         // A request already made but not yet rendered.
-        if (currentEnd < requestedWindowEndRef.current) return;
+        if (currentEnd < requestedWindowEndRef.current) { console.log('[DEBUG-scroll] bail: pending request', { currentEnd, requested: requestedWindowEndRef.current }); return; }
         const nextEnd = windowEndForTurn(all, currentEnd + WINDOW_PAGE, paginationRef.current.hasMoreOlder);
+        console.log('[DEBUG-scroll] compute', { currentEnd, nextEnd, allLen: all.length, hasMoreOlder: paginationRef.current.hasMoreOlder });
         if (nextEnd <= currentEnd) {
             // Everything the store holds that can be rendered already is —
             // the rest of this turn is still on the server.
             const { hasMoreOlder: more, isLoadingOlder: loading } = paginationRef.current;
+            console.log('[DEBUG-scroll] window exhausted, checking server', { more, loading });
             if (more) {
                 awaitingOlderRef.current = true;
                 if (!loading) void sync.loadOlderMessages(sessionId);
