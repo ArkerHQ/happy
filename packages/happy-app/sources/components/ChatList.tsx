@@ -566,6 +566,7 @@ const ChatListInternal = React.memo((props: {
             0,
             scrollMetricsRef.current.contentHeight - scrollMetricsRef.current.viewportHeight - distanceFromNewest,
         );
+        console.log(`[DEBUG3] dist=${distanceFromOldest} thresh=${scrollMetricsRef.current.viewportHeight * START_REACHED_VIEWPORTS} contentH=${scrollMetricsRef.current.contentHeight} viewportH=${scrollMetricsRef.current.viewportHeight} distFromNewest=${distanceFromNewest} windowLen=${windowRef.current.length} allLen=${messagesRef.current.length} tookOver=${userTookOverRef.current}`);
         if (userTookOverRef.current
             && distanceFromOldest < scrollMetricsRef.current.viewportHeight * START_REACHED_VIEWPORTS) {
             requestOlderHistoryRef.current();
