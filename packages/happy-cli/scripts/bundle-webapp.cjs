@@ -49,9 +49,19 @@ function main() {
     }
 
     console.log(`\n→ Copying webapp into ${outDir}`);
-    rmrf(outDir);
+    // Atomic swap: copy into a sibling temp dir first, then rename it into
+    // place. A live server serving from outDir must never see a moment where
+    // outDir is empty/missing (the old rmrf-then-cpSync sequence left it that
+    // way for the whole copy, long enough for a real request — and a CDN — to
+    // observe and cache a broken response).
+    const tmpDir = `${outDir}.new-${process.pid}`;
+    const oldDir = `${outDir}.old-${process.pid}`;
+    rmrf(tmpDir);
     fs.mkdirSync(path.dirname(outDir), { recursive: true });
-    fs.cpSync(APP_DIST, outDir, { recursive: true });
+    fs.cpSync(APP_DIST, tmpDir, { recursive: true });
+    if (fs.existsSync(outDir)) fs.renameSync(outDir, oldDir);
+    fs.renameSync(tmpDir, outDir);
+    rmrf(oldDir);
 
     console.log(`\n✓ webapp written to ${outDir}`);
 }
