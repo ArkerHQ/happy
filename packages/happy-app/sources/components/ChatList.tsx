@@ -552,7 +552,6 @@ const ChatListInternal = React.memo((props: {
     // offsets walk back through history.
     const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-        console.log('[DEBUG-scroll] onScroll fired', { offsetY: contentOffset.y, tookOver: userTookOverRef.current, rawContentSizeHeight: contentSize.height, rawViewportHeight: layoutMeasurement.height, windowLen: windowRef.current.length, allLen: messagesRef.current.length });
         const distanceFromNewest = Math.max(0, contentOffset.y);
         scrollMetricsRef.current.offsetY = distanceFromNewest;
         if (contentSize.height > 0) {
@@ -567,10 +566,8 @@ const ChatListInternal = React.memo((props: {
             0,
             scrollMetricsRef.current.contentHeight - scrollMetricsRef.current.viewportHeight - distanceFromNewest,
         );
-        console.log('[DEBUG-scroll] distance calc', { distanceFromOldest, contentHeight: scrollMetricsRef.current.contentHeight, viewportHeight: scrollMetricsRef.current.viewportHeight, distanceFromNewest, threshold: scrollMetricsRef.current.viewportHeight * START_REACHED_VIEWPORTS });
         if (userTookOverRef.current
             && distanceFromOldest < scrollMetricsRef.current.viewportHeight * START_REACHED_VIEWPORTS) {
-            console.log('[DEBUG-scroll] near-edge trigger', { distanceFromOldest, viewportHeight: scrollMetricsRef.current.viewportHeight, contentHeight: scrollMetricsRef.current.contentHeight });
             requestOlderHistoryRef.current();
         }
         updateHeaderBackdropVisibility();
@@ -641,25 +638,28 @@ const ChatListInternal = React.memo((props: {
         // trigger zone, and layout corrections can drift into it as well —
         // neither is a request for more history.
         if (!props.active || !listReadyRef.current || !userTookOverRef.current) {
-            console.log('[DEBUG-scroll] bail: gate', { active: props.active, listReady: listReadyRef.current, tookOver: userTookOverRef.current });
             return;
         }
-        if (awaitingOlderRef.current) { console.log('[DEBUG-scroll] bail: awaitingOlder'); return; }
+        if (awaitingOlderRef.current) return;
         const all = messagesRef.current;
         const currentEnd = windowRef.current.length;
-        if (all.length === 0 || currentEnd <= 0) { console.log('[DEBUG-scroll] bail: empty', { allLen: all.length, currentEnd }); return; }
+        if (all.length === 0 || currentEnd <= 0) return;
         // A request already made but not yet rendered.
-        if (currentEnd < requestedWindowEndRef.current) { console.log('[DEBUG-scroll] bail: pending request', { currentEnd, requested: requestedWindowEndRef.current }); return; }
+        if (currentEnd < requestedWindowEndRef.current) return;
         const nextEnd = windowEndForTurn(all, currentEnd + WINDOW_PAGE, paginationRef.current.hasMoreOlder);
-        console.log('[DEBUG-scroll] compute', { currentEnd, nextEnd, allLen: all.length, hasMoreOlder: paginationRef.current.hasMoreOlder });
         if (nextEnd <= currentEnd) {
             // Everything the store holds that can be rendered already is —
             // the rest of this turn is still on the server.
             const { hasMoreOlder: more, isLoadingOlder: loading } = paginationRef.current;
-            console.log('[DEBUG-scroll] window exhausted, checking server', { more, loading });
             if (more) {
                 awaitingOlderRef.current = true;
-                if (!loading) void sync.loadOlderMessages(sessionId);
+                // A rejected fetch must not leave awaitingOlderRef stuck true:
+                // its only other reset path requires hasMoreOlder to have
+                // changed, which a failed request never does. Left unguarded,
+                // one transient failure permanently jams every future
+                // scroll-triggered request for the rest of the session (no
+                // error surfaces because .catch() is the only consumer).
+                if (!loading) sync.loadOlderMessages(sessionId).catch(() => { awaitingOlderRef.current = false; });
             }
             return;
         }
@@ -691,13 +691,11 @@ const ChatListInternal = React.memo((props: {
     // since there is no onScrollBeginDrag for wheels. Shift+wheel also swaps
     // deltaX/deltaY on macOS — restore vertical scrolling.
     React.useEffect(() => {
-        if (Platform.OS !== 'web') { console.log('[DEBUG-scroll] wheel effect: not web'); return; }
+        if (Platform.OS !== 'web') return;
         const node = listRef.current?.getScrollableNode?.() as HTMLElement | undefined;
-        console.log('[DEBUG-scroll] wheel effect: node=', !!node, 'hasGetScrollableNode=', !!listRef.current?.getScrollableNode);
         if (!node) return;
         const handler = (e: WheelEvent) => {
             userTookOverRef.current = true;
-            console.log('[DEBUG-scroll] wheel fired, deltaY=', e.deltaY, 'scrollTop=', node.scrollTop);
             if (e.shiftKey && Math.abs(e.deltaX) > 0 && Math.abs(e.deltaY) < 1) {
                 node.scrollTop += e.deltaX;
                 e.preventDefault();
