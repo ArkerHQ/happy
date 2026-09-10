@@ -637,6 +637,7 @@ const ChatListInternal = React.memo((props: {
         // conversation rests with its oldest message already inside the
         // trigger zone, and layout corrections can drift into it as well —
         // neither is a request for more history.
+        console.log(`[DEBUG2] requestOlderHistory called: active=${props.active} listReady=${listReadyRef.current} tookOver=${userTookOverRef.current} awaiting=${awaitingOlderRef.current}`);
         if (!props.active || !listReadyRef.current || !userTookOverRef.current) {
             return;
         }
@@ -645,12 +646,13 @@ const ChatListInternal = React.memo((props: {
         const currentEnd = windowRef.current.length;
         if (all.length === 0 || currentEnd <= 0) return;
         // A request already made but not yet rendered.
-        if (currentEnd < requestedWindowEndRef.current) return;
+        if (currentEnd < requestedWindowEndRef.current) { console.log(`[DEBUG2] bail pending: currentEnd=${currentEnd} requested=${requestedWindowEndRef.current}`); return; }
         const nextEnd = windowEndForTurn(all, currentEnd + WINDOW_PAGE, paginationRef.current.hasMoreOlder);
         if (nextEnd <= currentEnd) {
             // Everything the store holds that can be rendered already is —
             // the rest of this turn is still on the server.
             const { hasMoreOlder: more, isLoadingOlder: loading } = paginationRef.current;
+            console.log(`[DEBUG2] window exhausted: currentEnd=${currentEnd} allLen=${all.length} hasMoreOlder=${more} isLoadingOlder=${loading} awaitingOlder=${awaitingOlderRef.current}`);
             if (more) {
                 awaitingOlderRef.current = true;
                 // A rejected fetch must not leave awaitingOlderRef stuck true:
