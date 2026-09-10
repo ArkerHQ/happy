@@ -552,7 +552,7 @@ const ChatListInternal = React.memo((props: {
     // offsets walk back through history.
     const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-        console.log('[DEBUG-scroll] onScroll fired', { offsetY: contentOffset.y, tookOver: userTookOverRef.current });
+        console.log('[DEBUG-scroll] onScroll fired', { offsetY: contentOffset.y, tookOver: userTookOverRef.current, rawContentSizeHeight: contentSize.height, rawViewportHeight: layoutMeasurement.height, windowLen: windowRef.current.length, allLen: messagesRef.current.length });
         const distanceFromNewest = Math.max(0, contentOffset.y);
         scrollMetricsRef.current.offsetY = distanceFromNewest;
         if (contentSize.height > 0) {
@@ -567,6 +567,7 @@ const ChatListInternal = React.memo((props: {
             0,
             scrollMetricsRef.current.contentHeight - scrollMetricsRef.current.viewportHeight - distanceFromNewest,
         );
+        console.log('[DEBUG-scroll] distance calc', { distanceFromOldest, contentHeight: scrollMetricsRef.current.contentHeight, viewportHeight: scrollMetricsRef.current.viewportHeight, distanceFromNewest, threshold: scrollMetricsRef.current.viewportHeight * START_REACHED_VIEWPORTS });
         if (userTookOverRef.current
             && distanceFromOldest < scrollMetricsRef.current.viewportHeight * START_REACHED_VIEWPORTS) {
             console.log('[DEBUG-scroll] near-edge trigger', { distanceFromOldest, viewportHeight: scrollMetricsRef.current.viewportHeight, contentHeight: scrollMetricsRef.current.contentHeight });
