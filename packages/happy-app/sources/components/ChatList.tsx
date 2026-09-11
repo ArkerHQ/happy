@@ -85,6 +85,21 @@ const MAINTAIN_VISIBLE_CONTENT_POSITION = {
 const INITIAL_WINDOW = 30;
 const WINDOW_PAGE = 30;
 /**
+ * Hard ceiling on how many messages the window will ever mount at once.
+ *
+ * Nothing before this capped the window's growth: every trigger fired while
+ * scrolled into a long conversation added another WINDOW_PAGE with no upper
+ * bound, so a session with thousands of messages eventually mounted nearly
+ * all of them (confirmed in the field — a window that had grown to ~4,400
+ * rows). FlashList's size estimation and cell recycling degrade badly at
+ * that scale: rows exist in the data array but stop painting, which reads to
+ * the user as "it loads but doesn't render." Capping the window keeps the
+ * mounted set bounded regardless of how long the conversation is; a reader
+ * who scrolls past the cap sees the loading spinner hold rather than an
+ * ever-growing, eventually-blank list.
+ */
+const MAX_WINDOW = 300;
+/**
  * History is rendered ahead of the reader once they are within this many
  * viewports of the oldest rendered message.
  */
@@ -290,7 +305,10 @@ const ChatListInternal = React.memo((props: {
             const index = messages.findIndex((msg) => msg.id === oldestRenderedId);
             if (index >= 0) desiredEnd = index + 1;
         }
-        const next = messages.slice(0, windowEndForTurn(messages, desiredEnd, props.hasMoreOlder));
+        // Defensive: the growth call sites already cap at MAX_WINDOW, but
+        // clamp here too so a stale oldestRenderedId (e.g. surviving a store
+        // reset) can never resurrect an unbounded window.
+        const next = messages.slice(0, windowEndForTurn(messages, Math.min(desiredEnd, MAX_WINDOW), props.hasMoreOlder));
         const prev = windowRef.current;
         if (prev.length === next.length && prev.every((msg, i) => msg === next[i])) {
             return prev;
@@ -648,7 +666,14 @@ const ChatListInternal = React.memo((props: {
         if (all.length === 0 || currentEnd <= 0) return;
         // A request already made but not yet rendered.
         if (currentEnd < requestedWindowEndRef.current) { console.log(`[DEBUG2] bail pending: currentEnd=${currentEnd} requested=${requestedWindowEndRef.current}`); return; }
-        const nextEnd = windowEndForTurn(all, currentEnd + WINDOW_PAGE, paginationRef.current.hasMoreOlder);
+        // The window has hit its hard ceiling (see MAX_WINDOW) — treat this
+        // exactly like reaching the true oldest message: stop growing rather
+        // than mounting an unbounded number of rows.
+        if (currentEnd >= MAX_WINDOW) return;
+        // Cap the *desired* end, not the turn-aligned result, so a capped
+        // window still lands on a turn boundary (windowEndForTurn only ever
+        // extends forward to find one) instead of being sliced mid-turn.
+        const nextEnd = windowEndForTurn(all, Math.min(currentEnd + WINDOW_PAGE, MAX_WINDOW), paginationRef.current.hasMoreOlder);
         if (nextEnd <= currentEnd) {
             // Everything the store holds that can be rendered already is —
             // the rest of this turn is still on the server.
@@ -678,7 +703,8 @@ const ChatListInternal = React.memo((props: {
         if (!awaitingOlderRef.current || props.isLoadingOlder) return;
         const all = messagesRef.current;
         const currentEnd = windowRef.current.length;
-        const nextEnd = windowEndForTurn(all, currentEnd + WINDOW_PAGE, props.hasMoreOlder);
+        if (currentEnd >= MAX_WINDOW) { awaitingOlderRef.current = false; return; }
+        const nextEnd = windowEndForTurn(all, Math.min(currentEnd + WINDOW_PAGE, MAX_WINDOW), props.hasMoreOlder);
         if (nextEnd <= currentEnd) {
             // The fetch settled without adding anything renderable. Only stop
             // waiting once the server says there is nothing left.
