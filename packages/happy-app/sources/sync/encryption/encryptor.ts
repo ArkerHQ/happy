@@ -22,7 +22,7 @@ export interface Decryptor {
 // history never gets a chance to paint before the reader has moved past it.
 // Yielding every DECRYPT_YIELD_EVERY items keeps each burst under a frame
 // budget without changing the batching itself.
-const DECRYPT_YIELD_EVERY = 8;
+const DECRYPT_YIELD_EVERY = 4;
 async function yieldToMainThread(): Promise<void> {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }

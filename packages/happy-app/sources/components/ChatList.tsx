@@ -82,8 +82,8 @@ const MAINTAIN_VISIBLE_CONTENT_POSITION = {
  * lands at the far end, past the viewport, where it cannot shift what the
  * reader is looking at. What is left is the cost reason, which is enough.
  */
-const INITIAL_WINDOW = 60;
-const WINDOW_PAGE = 60;
+const INITIAL_WINDOW = 30;
+const WINDOW_PAGE = 30;
 /**
  * History is rendered ahead of the reader once they are within this many
  * viewports of the oldest rendered message.
